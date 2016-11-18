@@ -1,7 +1,12 @@
 name:                snaplet-sqlite-simple-jwt-auth
 version:             0.1.0.0
 synopsis:            Snaplet for JWT authentication with snaplet-sqlite-simple
-description:         Please see README.md
+description:
+    JWT authentication snaplet for snaplet-sqlite-simple.
+    .
+    Main documentation: <docs/Snap-Snaplet-SqliteSimple-JwtAuth Snap.Snaplet.SqliteSimple.JwtAuth>
+    .
+    For more info, browse to <http://github.com/nurpax/snaplet-sqlite-simple-jwt-auth> for examples & more information.
 homepage:            https://github.com/nurpax/snaplet-sqlite-simple-jwt-auth#readme
 license:             BSD3
 license-file:        LICENSE

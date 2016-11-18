@@ -15,9 +15,14 @@ data SqliteJwt = SqliteJwt {
   , sqliteJwtConn :: MVar Connection
   }
 
+-- | User account
+-- User ID and login name.
+--
+-- If you need to store additional fields for your user accounts, persist them
+-- in your application SQL tables and key them by 'userId'.
 data User = User {
-    userId    :: Int
-  , userLogin :: T.Text
+    userId    :: Int     -- ^ The database ID of the user account
+  , userLogin :: T.Text  -- ^ The login name
   } deriving (Eq, Show)
 
 instance FromJSON User where
@@ -38,10 +43,11 @@ instance FromJSON LoginParams where
                          v .: "pass"
   parseJSON _          = mzero
 
+-- | Types of errors that can happen on login or new user creation.
 data AuthFailure =
-    UnknownUser
-  | DuplicateLogin
-  | WrongPassword
+    UnknownUser     -- ^ The login name does not exist.
+  | DuplicateLogin  -- ^ The login name already exists.
+  | WrongPassword   -- ^ Failed the password check.
   deriving (Eq, Show)
 
 data HttpError = HttpError Int String
