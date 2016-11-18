@@ -2,7 +2,7 @@ name:                snaplet-sqlite-simple-jwt-auth
 version:             0.1.0.0
 synopsis:            Snaplet for JWT authentication with snaplet-sqlite-simple
 description:         Please see README.md
-homepage:            https://github.com/nurpax/snaplet-sqlite-simple-jwt-auth-reactjs-todo#readme
+homepage:            https://github.com/nurpax/snaplet-sqlite-simple-jwt-auth#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Janne Hellsten
@@ -13,13 +13,13 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  hs-source-dirs:      src/Snap/Snaplet
-  other-modules:       Snap.Snaplet.SqliteSimple.JwtAuth
+  hs-source-dirs:      src
+  exposed-modules:     Snap.Snaplet.SqliteSimple.JwtAuth
                        Snap.Snaplet.SqliteSimple.JwtAuth.JwtAuth
                        Snap.Snaplet.SqliteSimple.JwtAuth.Db
                        Snap.Snaplet.SqliteSimple.JwtAuth.Util
                        Snap.Snaplet.SqliteSimple.JwtAuth.Types
-  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -Wall
   build-depends:
     aeson,
     attoparsec,
@@ -34,8 +34,6 @@ library
     mtl                   >= 2 && < 3,
     snap                  >= 1.0,
     snap-core             >= 1.0,
-    snap-server           >= 1.0,
-    snap-loader-static,
     snaplet-sqlite-simple >= 1.0,
     sqlite-simple         >= 0.4.9.0,
     text                  >= 1.2,
