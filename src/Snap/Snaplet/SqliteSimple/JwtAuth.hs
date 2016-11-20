@@ -41,6 +41,8 @@ import Snap.Snaplet.SqliteSimple.JwtAuth.Types
 import Snap.Snaplet.SqliteSimple.JwtAuth.JwtAuth
 
 -- $intro
+-- NOTE: This is still very much a work-in-progress project!
+--
 -- A snap middleware for implementing JWT-based authentication with user
 -- accounts persisted in a SQLite3 database.  It's intended use is to protect
 -- server API routes used in single-page web applications (SPA) and mobile
