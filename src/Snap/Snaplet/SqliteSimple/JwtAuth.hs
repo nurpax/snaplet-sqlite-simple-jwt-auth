@@ -17,10 +17,23 @@ module Snap.Snaplet.SqliteSimple.JwtAuth (
   -- | Use these handlers to implement user registration, login and protecting
   -- routes with authentication.
   --
+  -- The 'registerUser' and 'loginUser' handlers follow a fixed convention for
+  -- request parameters and response.  To sign up a user or login an existing
+  -- user, make a POST request to a route handled by 'registerUser' or
+  -- 'loginUser'.  Both require input parameters to be passed in as JSON.  A
+  -- successful user creation or a login will return HTTP 400 code and reply
+  -- with a JSON object containing the JWT.  Failed login attempts will reply
+  -- with an HTTP 401 error and will reply with a JSON object containing the
+  -- error message.
+  --
+  -- Use the 'requireAuth' wrapper for implementing routes that require
+  -- authentication.  The client side is responsible for passing in a valid
+  -- JWT in the Authentication header.
+  --
   -- If you need to customize error handling or need a different JSON schema
   -- for communicating between the server and client, you may wish the re-
-  -- implement these using the low-level handlers documented later in the
-  -- API ref.
+  -- implement 'registerUser' and 'loginUser' using the low-level handlers
+  -- documented later in the API ref.
   , registerUser
   , loginUser
   , requireAuth
@@ -47,6 +60,8 @@ import Snap.Snaplet.SqliteSimple.JwtAuth.JwtAuth
 -- accounts persisted in a SQLite3 database.  It's intended use is to protect
 -- server API routes used in single-page web applications (SPA) and mobile
 -- applications.
+--
+-- Passwords are hashed and salted using the BCrypt library.
 --
 -- See the https://github.com/nurpax/snap-reactjs-todo project for a full
 -- application using this library.  It implements a todo application as an SPA

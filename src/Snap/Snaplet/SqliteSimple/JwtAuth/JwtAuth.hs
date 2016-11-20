@@ -133,6 +133,15 @@ jwtFromUser (User uid loginName) = do
 -- Verify authentication from the JWT token passed in the Authorization
 -- header, and run the user provided 'action' with the logged in user.
 --
+-- Use the following syntax for constructing the Authorization header:
+--
+-- @
+-- Bearer \<JWT\>
+-- @
+--
+-- where \<JWT\> is obtained from the "token" field of a successful call to
+-- 'registerUser' or 'loginUser'.
+--
 -- On errors such as missing or malformed JWT or failure to verify the JWT,
 -- error out early and issue an HTTP 401 error.
 requireAuth :: (User -> Handler b SqliteJwt a) -> Handler b SqliteJwt a
@@ -173,6 +182,36 @@ loginOK user = do
   jwt <- jwtFromUser user
   writeJSON $ object [ "token" .= jwt ]
 
+-- | Create a new user.
+--
+-- Use a POST request for this handler with password and login encoded as JSON
+-- in the body of the request:
+--
+-- @
+-- {
+--    "login": \<login name\>,
+--    "pass": \<password\>
+-- }
+-- @
+--
+-- A successful login will reply with an HTTP 400 code and the following JSON:
+--
+-- @
+-- {
+--    "token": \<JWT\>
+-- }
+-- @
+--
+-- The returned token can be used to make authenticated requests.
+--
+-- Login and user registration errors will be reported with an HTTP error code
+-- 401 and the error message will be sent as a JSON object:
+--
+-- @
+-- {
+--   "error": \<message\>
+-- }
+-- @
 registerUser :: Handler b SqliteJwt ()
 registerUser = method POST newUser
   where
@@ -181,8 +220,39 @@ registerUser = method POST newUser
       userOrErr <- createUser (lpLogin params) (lpPass params)
       either handleLoginError loginOK userOrErr
 
+-- | Login an existing user.
+--
+-- Use a POST request for this handler with password and login encoded as JSON
+-- in the body of the request:
+--
+-- @
+-- {
+--   "login": \<login name\>,
+--   "pass": \<password\>
+-- }
+-- @
+--
+-- A successful login will reply with an HTTP 400 code and the following JSON:
+--
+-- @
+-- {
+--   "token": \<JWT\>
+-- }
+-- @
+--
+-- The returned token can be used to make authenticated requests.
+--
+-- Login and user registration errors will be reported with an HTTP error code
+-- 401 and the error message will be sent as a JSON object:
+--
+-- @
+-- {
+--   "error": \<message\>
+-- }
+-- @
 loginUser :: Handler b SqliteJwt ()
 loginUser = method POST $ do
   params    <- reqJSON
   userOrErr <- login (lpLogin params) (lpPass params)
   either handleLoginError loginOK userOrErr
+
