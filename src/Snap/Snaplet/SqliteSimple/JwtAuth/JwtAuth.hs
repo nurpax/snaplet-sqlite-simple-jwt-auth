@@ -3,17 +3,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-{-
-
-Minimal proof of concept JWT authentication snaplet using snaplet-sqlite-
-simple.
-
--}
-
 module Snap.Snaplet.SqliteSimple.JwtAuth.JwtAuth (
     SqliteJwt(..)
   , User(..)
   , AuthFailure(..)
+  , defaults
   , sqliteJwtInit
   , requireAuth
   , registerUser
@@ -41,6 +35,7 @@ import           Data.Map as M
 import           Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as LT
+import           Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import           Snap
 import           Snap.Snaplet.SqliteSimple (Sqlite, sqliteConn)
 import qualified Web.JWT as JWT
@@ -49,8 +44,13 @@ import           Snap.Snaplet.SqliteSimple.JwtAuth.Util
 import           Snap.Snaplet.SqliteSimple.JwtAuth.Types
 import qualified Snap.Snaplet.SqliteSimple.JwtAuth.Db as Db
 
-bcryptPolicy :: BC.HashingPolicy
-bcryptPolicy = BC.fastBcryptHashingPolicy
+-- | Default settings for the snaplet
+defaults :: Options
+defaults = Options {
+    hashingPolicy      = BC.fastBcryptHashingPolicy
+  , signingKeyFilename = "jwt_secret.txt"
+  , maxTokenExpiration = 60*60*24*14 -- two weeks
+  }
 
 -------------------------------------------------------------------------
 -- | Initializer for the sqlite-simple JwtAuth snaplet.
@@ -63,14 +63,14 @@ bcryptPolicy = BC.fastBcryptHashingPolicy
 -- Initialization will automatically setup SQL tables used to store user
 -- accounts.  It will also automatically upgrade the SQL schema if necessary.
 sqliteJwtInit
-  :: String         -- ^ JWT secret signing key filename
+  :: Options        -- ^ Site policy options
   -> Snaplet Sqlite -- ^ The sqlite-simple snaplet
   -> SnapletInit b SqliteJwt
-sqliteJwtInit jwtSigningKeyFname db = makeSnaplet "sqlite-simple-jwt" description Nothing $ do
-    k <- liftIO $ (JWT.binarySecret <$> getKey jwtSigningKeyFname)
+sqliteJwtInit options db = makeSnaplet "sqlite-simple-jwt" description Nothing $ do
+    k <- liftIO $ (JWT.binarySecret <$> getKey (signingKeyFilename options))
     let conn = sqliteConn $ db ^# snapletValue
     liftIO $ Db.createTableIfMissing conn
-    return $ SqliteJwt k conn
+    return $ SqliteJwt k conn options
   where
     description = "sqlite-simple jwt auth"
 
@@ -82,9 +82,10 @@ createUser
   -> Handler b SqliteJwt (Either AuthFailure User)
 createUser loginName password = do
   user <- Db.queryUser loginName
+  hashPolicy <- hashingPolicy <$> gets options
   case user of
     Nothing -> do
-      hashedPass <- liftIO $ BC.hashPasswordUsingPolicy bcryptPolicy (LT.encodeUtf8 password)
+      hashedPass <- liftIO $ BC.hashPasswordUsingPolicy hashPolicy (LT.encodeUtf8 password)
       -- TODO don't use fromJust
       Db.insertUser loginName (fromJust hashedPass)
       u <- Db.queryUser loginName
@@ -120,11 +121,12 @@ parseBearerJwt s = AP.parseOnly (AP.string "Bearer " *> payload) s
     payload = LT.decodeUtf8 <$> AP.takeWhile1 (AP.inClass base64)
     base64 = "A-Za-z0-9+/_=.-"
 
-jwtFromUser :: User -> Handler b SqliteJwt JWT.JSON
-jwtFromUser (User uid loginName) = do
+jwtFromUser :: User -> POSIXTime -> Handler b SqliteJwt JWT.JSON
+jwtFromUser (User uid loginName) expiresOn = do
   key <- gets siteSecret
   let cs = JWT.def {
             JWT.unregisteredClaims = M.fromList [("id", Number (fromIntegral uid)), ("login", String loginName)]
+          , JWT.exp = JWT.intDate $ expiresOn
           }
   return $ JWT.encodeSigned JWT.HS256 key cs
 
@@ -149,14 +151,15 @@ requireAuth action = do
   key <- gets siteSecret
   req <- getRequest
   res <- runExceptT $ do
-    authHdr     <- getHeader "Authorization" (rqHeaders req) ?? "Missing Authorization header"
+    curTime     <- liftIO $ getPOSIXTime
+    authHdr     <- getHeader "Authorization" (rqHeaders req) ?? "missing Authorization header"
     encPayload  <- hoistEither . parseBearerJwt $ authHdr
-    jwt         <- JWT.decode encPayload     ?? "Malformed JWT"
-    verifJwt    <- JWT.verify key jwt        ?? "JWT verification failed"
+    jwt         <- JWT.decode encPayload           ?? "malformed JWT"
+    verifJwt    <- JWT.verify key jwt              ?? "JWT verification failed"
+    exp         <- JWT.exp (JWT.claims verifJwt)   ?? "exp not set in JWT"
+    assertZ (JWT.secondsSinceEpoch exp >= curTime) ?? "token has expired"
     let unregClaims = JWT.unregisteredClaims (JWT.claims verifJwt)
-    -- TODO verify expiration too
-    user        <- hoistEither . parseEither parseJSON $ (toObject unregClaims)
-    return user
+    hoistEither . parseEither parseJSON $ (toObject unregClaims)
   either (finishEarly 401 . BS8.pack) action res
   where
     toObject = Object . HM.fromList . M.toList
@@ -179,7 +182,9 @@ handleLoginError err =
 
 loginOK :: User -> Handler b SqliteJwt ()
 loginOK user = do
-  jwt <- jwtFromUser user
+  expiresIn <- maxTokenExpiration <$> gets options
+  curTime   <- liftIO getPOSIXTime
+  jwt       <- jwtFromUser user (curTime + (fromIntegral expiresIn))
   writeJSON $ object [ "token" .= jwt ]
 
 -- | Create a new user.

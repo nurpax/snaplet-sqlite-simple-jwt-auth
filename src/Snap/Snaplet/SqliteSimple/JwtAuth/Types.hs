@@ -4,6 +4,7 @@ module Snap.Snaplet.SqliteSimple.JwtAuth.Types where
 
 import           Control.Concurrent
 import           Control.Monad
+import qualified Crypto.BCrypt as BC
 import           Data.Aeson
 import qualified Data.Text as T
 import           Database.SQLite.Simple
@@ -13,10 +14,26 @@ import           Web.JWT as JWT (Secret)
 data SqliteJwt = SqliteJwt {
     siteSecret    :: JWT.Secret
   , sqliteJwtConn :: MVar Connection
+  , options       :: Options
   }
 
--- | User account
--- User ID and login name.
+-- | Site configuration options
+--
+-- Tokens will expire after 'maxTokenExpiration' seconds.  The login handler
+-- may be extended in the future to allow setting a lower expiration time.  In
+-- that case, 'maxTokenExpiration' will be used as the upper limit for expiry.
+-- Otherwise someone might modify login requests to set an infinitely long
+-- expiration time and JWTs would never expire.
+--
+-- You can use the 'Snap.Snaplet.SqliteSimple.JwtAuth.defaults' value as your
+-- basis, overriding individual fields as necessary.
+data Options = Options {
+    hashingPolicy      :: BC.HashingPolicy  -- ^ Which bcrypt hashing policy to use
+  , signingKeyFilename :: String            -- ^ Where to save site JWT key
+  , maxTokenExpiration :: Int               -- ^ Maximum expiration time for a JWT
+  } deriving (Show)
+
+-- | User ID and login name.
 --
 -- If you need to store additional fields for your user accounts, persist them
 -- in your application SQL tables and key them by 'userId'.
